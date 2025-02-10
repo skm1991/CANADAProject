@@ -1,0 +1,67 @@
+name: GCLOUD BUILD
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest  # Use an Ubuntu runner for a Linux-based workflow
+
+    steps:
+      # Step 1: Checkout code
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      # Step 2: Set up Google Cloud SDK
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0.2.0
+        with:
+          project_id: soundarounddatondw
+          service_account_key: ${{ secrets.GCP_SA_KEY }}
+
+      # Step 3: Authenticate Docker with Google Artifact Registry
+      - name: Authenticate Docker with Artifact Registry
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev
+
+      # Step 4: Build Docker image (Linux-based)
+      - name: Build Docker Image
+        run: |
+          docker build -t us-central1-docker.pkg.dev/soundarounddatondw/soundaroundrepo/canadaproject:latest .
+
+      # Step 5: Push Docker image to Artifact Registry
+      - name: Push Docker Image to Artifact Registry
+        run: |
+          docker push us-central1-docker.pkg.dev/soundarounddatondw/soundaroundrepo/canadaproject:latest
+
+      # Step 6: Create or Update Cloud Run Job
+      - name: Create Cloud Run Job
+        run: |
+          gcloud run jobs create canadaproject-job \
+            --image=us-central1-docker.pkg.dev/soundarounddatondw/soundaroundrepo/canadaproject:latest \
+            --region=us-central1 || \
+          gcloud run jobs update canadaproject-job \
+            --image=us-central1-docker.pkg.dev/soundarounddatondw/soundaroundrepo/canadaproject:latest \
+            --region=us-central1
+
+      # Step 7: Execute the Cloud Run Job
+      - name: Execute Cloud Run Job
+        run: |
+          gcloud run jobs execute canadaproject-job --region=us-central1
+
+      # Step 8: Schedule the Job in Cloud Scheduler
+      - name: Schedule Cloud Run Job in Cloud Scheduler
+        run: |
+          gcloud scheduler jobs create http canadaproject-job-scheduler \
+            --schedule "0 1,2,3 * * *" \
+            --uri "https://us-central1-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/soundarounddatondw/jobs/canadaproject-job:run" \
+            --oauth-service-account-email "bigquerypbi@soundarounddatondw.iam.gserviceaccount.com" \
+            --http-method POST \
+            --location "us-central1" || \
+          gcloud scheduler jobs update http canadaproject-job-scheduler \
+            --schedule "0 1,2,3 * * *" \
+            --uri "https://us-central1-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/soundarounddatondw/jobs/canadaproject-job:run" \
+            --oauth-service-account-email "bigquerypbi@soundarounddatondw.iam.gserviceaccount.com" \
+            --http-method POST \
+            --location "us-central1"
