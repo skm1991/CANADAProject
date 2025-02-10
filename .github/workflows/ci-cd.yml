@@ -25,17 +25,23 @@ jobs:
       - name: Authenticate Docker with Artifact Registry
         run: gcloud auth configure-docker us-central1-docker.pkg.dev
 
-      # Step 4: Build Docker image (Linux-based)
+      # Step 4: Ensure the build directory exists
+      - name: Ensure Build Directory Exists
+        run: |
+          mkdir -p build
+          echo "Build directory ensured"
+
+      # Step 5: Build Docker image (Linux-based)
       - name: Build Docker Image
         run: |
           docker build -t us-central1-docker.pkg.dev/soundarounddatondw/soundaroundrepo/canadaproject:latest .
 
-      # Step 5: Push Docker image to Artifact Registry
+      # Step 6: Push Docker image to Artifact Registry
       - name: Push Docker Image to Artifact Registry
         run: |
           docker push us-central1-docker.pkg.dev/soundarounddatondw/soundaroundrepo/canadaproject:latest
 
-      # Step 6: Create or Update Cloud Run Job
+      # Step 7: Create or Update Cloud Run Job
       - name: Create Cloud Run Job
         run: |
           gcloud run jobs create canadaproject-job \
@@ -45,12 +51,12 @@ jobs:
             --image=us-central1-docker.pkg.dev/soundarounddatondw/soundaroundrepo/canadaproject:latest \
             --region=us-central1
 
-      # Step 7: Execute the Cloud Run Job
+      # Step 8: Execute the Cloud Run Job
       - name: Execute Cloud Run Job
         run: |
           gcloud run jobs execute canadaproject-job --region=us-central1
 
-      # Step 8: Schedule the Job in Cloud Scheduler
+      # Step 9: Schedule the Job in Cloud Scheduler
       - name: Schedule Cloud Run Job in Cloud Scheduler
         run: |
           gcloud scheduler jobs create http canadaproject-job-scheduler \
